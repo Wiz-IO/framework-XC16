@@ -1,0 +1,7 @@
+{
+    "name"        : "framework-XC16",
+    "description" : "PlatformIO Framework for Microchip PIC24",
+    "url"         : "https://github.com/",
+    "system"      : "*",
+    "version"     : "1.0.0"
+}
