@@ -53,8 +53,14 @@ private:
         switch (id)
         {
         default:
-            PPSInput(PPS_U1RX, PPS_RP18);  //  RX pin
-            PPSOutput(PPS_RP28, PPS_U1TX); //  TX pin
+            // PPSInput(PPS_U1RX, PPS_RP18);  //  RX pin
+            // IN_FN_PPS_U1RX = IN_PIN_PPS_RP18;
+            RPINR18bits.U1RXR = 18;
+
+            // PPSOutput(PPS_RP28, PPS_U1TX); //  TX pin
+            // OUT_PIN_PPS_RP28 = OUT_FN_PPS_U1TX;
+            RPOR14bits.RP28R = 3;
+
             break;
             // TODO OTHER
         }
@@ -150,7 +156,14 @@ public:
 
     void flush()
     {
-        // TX
+#define SPEN 0x8000u
+#define TXEN 0x0400u
+#define TRMT 0x0100u
+        if ((uart->reg->MODE & SPEN) && (uart->reg->STA & TXEN))
+        {
+            while ((uart->reg->STA & TRMT) == 0)
+                ;
+        }
         rxBuffer.clear();
     }
 

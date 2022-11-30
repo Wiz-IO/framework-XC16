@@ -32,7 +32,6 @@ extern "C"
 #include <ctype.h>
 
 #include <xc.h>
-#include <PPS.h>
 
 #define bool int
 #define true 1
