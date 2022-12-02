@@ -50,20 +50,16 @@ private:
 
     void _pinInit()
     {
+        PPS_UNLOCK();
         switch (id)
         {
-        default:
-            // PPSInput(PPS_U1RX, PPS_RP18);  //  RX pin
-            // IN_FN_PPS_U1RX = IN_PIN_PPS_RP18;
-            RPINR18bits.U1RXR = 18;
-
-            // PPSOutput(PPS_RP28, PPS_U1TX); //  TX pin
-            // OUT_PIN_PPS_RP28 = OUT_FN_PPS_U1TX;
-            RPOR14bits.RP28R = 3;
-
+        case 0:
+            RPINR18bits.U1RXR = 18; // RX FUNC = RPIN
+            RPOR14bits.RP28R = 3;   // TX RPIN = MODE
             break;
             // TODO OTHER
         }
+        PPS_LOCK();
     }
 
     void _setRxIF(unsigned v)
@@ -126,6 +122,32 @@ private:
     RingBuffer rxBuffer;
 
 public:
+    void setRPins(uint8_t RPIN_TX, uint8_t RPIN_RX)
+    {
+        PPS_UNLOCK();
+        uint8_t *p = (uint8_t *)&RPOR0;
+        switch (id)
+        {
+        case 0:
+            RPINR18bits.U1RXR = RPIN_RX;
+            p[RPIN_TX] = 3; // = mode
+            break;
+        case 1:
+            RPINR19bits.U2RXR = RPIN_RX;
+            p[RPIN_TX] = 5; 
+            break;
+        case 2:
+            RPINR17bits.U3RXR = RPIN_RX;
+            p[RPIN_TX] = 28; 
+            break;
+        case 3:
+            RPINR27bits.U4RXR = RPIN_RX;
+            p[RPIN_TX] = 30;
+            break;
+        }
+        PPS_LOCK();
+    }
+
     Uart(unsigned int _id, unsigned int prio = 2)
     {
         id = _id;

@@ -22,11 +22,14 @@
 
 #include <Arduino.h>
 
+#define PRINTF Serial.printf
+
 typedef struct SPI_s
 {
     uint16_t STAT;
     uint16_t CON1;
     uint16_t CON2;
+    uint16_t not_used;
     uint16_t BUFF;
 } SPI_t;
 
@@ -75,37 +78,6 @@ private:
     int _data_bits;
     int _mode;
 
-    int8_t _ss;
-
-    void _clrIF()
-    {
-        switch (_id)
-        {
-        case 0:
-            _SPI1IF = 0;
-            break;
-        case 1:
-            _SPI2IF = 0;
-            break;
-        case 2:
-            _SPI3IF = 0;
-            break;
-        }
-    }
-
-    unsigned _getIF()
-    {
-        switch (_id)
-        {
-        case 0:
-            return _SPI1IF;
-        case 1:
-            return _SPI2IF;
-        case 2:
-            return _SPI3IF;
-        }
-    }
-
 public:
     ~SPIClass() { end(); }
     SPIClass(int id)
@@ -124,30 +96,54 @@ public:
             break;
         }
         _bit_order = MSBFIRST;
-        _ss = -1;
     }
 
-    void begin(int8_t sck = -1, int8_t miso = -1, int8_t mosi = -1, int8_t ss = -1)
+    void setRPins(int clock, int miso, int mosi, int ss)
     {
-        // TODO
-        _ss = ss;
-        if (ss > -1)
-            pinMode(ss, OUTPUT);
-        spi->STAT |= 0x8000;
+        PPS_UNLOCK();
+        uint8_t *p = (uint8_t *)&RPOR0;
+        switch (_id)
+        {
+        case 0:
+            if (clock > -1)
+                p[clock] = 8;
+            if (mosi > -1)
+                p[mosi] = 7;
+            if (ss > -1)
+                p[ss] = 9;
+            if (miso > -1)
+                RPINR20bits.SDI1R = miso;
+            break;
+        case 1: // TODO
+            break;
+        case 2: // TODO
+            break;
+        }
+        PPS_LOCK();
     }
 
-    void end()
+    void begin(int sck = -1, int miso = -1, int mosi = -1, int ss = -1)
     {
-        // if (_ss > -1) pinMode(_ss, INPUT);
-        spi->STAT = 0;
+        setRPins(sck, miso, mosi, ss);
+        spi->CON1 = 0x32;
+        spi->CON2 = 0;
+        spi->STAT = 0x8000;
     }
+
+    void end() { spi->STAT = 0; }
 
     void setFrequency(uint32_t Hz)
     {
         if (_brg_hz != Hz)
         {
             _brg_hz = Hz;
-            uint32_t timeout = FCY / Hz;
+            uint16_t timeout = (uint32_t)FCY / Hz;
+            if (timeout == 0)
+            {
+                spi->CON1 |= 0b11111;
+                return;
+            }
+
             uint16_t primary = 0x0003;
             while (timeout != 0)
             {
@@ -164,8 +160,8 @@ public:
                 }
             }
             timeout--;
-            uint16_t secondary = (~(timeout << 2)) & 0x1C;
-            // TODO
+
+            spi->CON1 |= ((~(timeout << 2)) & 0x1C) | (primary & 3);
         }
     }
 
@@ -189,14 +185,10 @@ public:
 
     uint8_t transfer(uint8_t tx)
     {
-        // if (_ss > -1) digitalWrite(_ss, 0);
-        _clrIF();
         spi->BUFF = tx;
-        while (_getIF() == 0)
+        while (0 == (spi->STAT & 1))
             ;
-        uint8_t rx = spi->BUFF;
-        // if (_ss > -1) digitalWrite(_ss, 1);
-        return rx;
+        return spi->BUFF;
     }
 
     uint16_t transfer(uint16_t data)
@@ -237,21 +229,16 @@ public:
 
     void beginTransaction(SPISettings settings)
     {
-        if (_ss > -1)
-            digitalWrite(_ss, 0);
+        int stat = spi->STAT;
+        spi->STAT = 0;
         setFrequency(settings.clock);
         setDataMode(settings.mode);
         setBitOrder(settings.order);
-        // TODO
-    }
-
-    void endTransaction(void)
-    {
-        if (_ss > -1)
-            digitalWrite(_ss, 1);
+        spi->STAT = stat;
     }
 
     // not used
+    void endTransaction(void) {}
     uint32_t getClockDivider() { return 0; }
     void setClockDivider(uint8_t div) {}
     void usingInterrupt(int interruptNumber) {}

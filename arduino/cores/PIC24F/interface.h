@@ -61,6 +61,9 @@ extern "C"
     void digitalToggle(uint8_t pin);
     uint32_t seconds(void);
 
+#define PPS_UNLOCK() __builtin_write_OSCCONL(OSCCON & 0xBF)
+#define PPS_LOCK() __builtin_write_OSCCONL(OSCCON | 0x40)
+
 #ifdef __cplusplus
 }
 
