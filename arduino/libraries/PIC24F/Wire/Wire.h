@@ -25,7 +25,7 @@
 #include "variant.h"
 #include "RingBuffer.h"
 
-#define WIRE_PRINT // Serial.printf
+//#define WIRE_PRINT Serial.printf
 
 typedef struct I2C_s
 {
@@ -42,57 +42,130 @@ class TwoWire : public Stream
 {
 private:
     int _id;
-    uint32_t _speed;
+    I2C_t *i2c;
+    uint32_t _speed, _timeout;
     bool transmissionBegun;
     uint8_t _slave_address;
     RingBuffer rx, tx;
+
+    inline void RestartI2C(void)
+    {
+        i2c->CON |= 1 << 3; /*RSEN initiate restart on SDA and SCL pins */
+    }
+    inline void StopI2C(void)
+    {
+        i2c->CON |= 1 << 2; /* PEN, initiate Stop on SDA and SCL pins */
+    }
+    inline void StartI2C(void)
+    {
+        i2c->CON |= 1; /* SEN,  initiate Start on SDA and SCL pins */
+    }
+
+    int IdleI2C(void)
+    {
+        uint32_t T = _timeout;
+        while (--T)
+        {
+            /* Wait until I2C Bus is Inactive */
+            if (i2c->CON & 0b11111) // SEN RSEN PEN RCEN ACKEN
+                return 0;
+            if (i2c->STAT & 1 << 14) // TRSTAT
+                return 0;
+        }
+        return -1;
+    }
+
+    int MasterWriteI2C(unsigned char data)
+    {
+        I2C1TRN = data;
+        if (i2c->STAT & 1 << 7) /* IWCOL, If write collision occurs */
+            return -1;
+        else
+            return 0;
+    }
 
 public:
     TwoWire(int id, uint32_t speed_Hz = 100000U)
     {
         _id = id;
+        switch (_id)
+        {
+        case 0:
+            i2c = (I2C_t *)&I2C1RCV;
+            break;
+        case 1:
+            i2c = (I2C_t *)&I2C2RCV;
+            break;
+        }
         _speed = speed_Hz;
+        _timeout = 0x8000;
         transmissionBegun = false;
     }
 
     ~TwoWire() { end(); }
 
-    void setTimeOut(uint32_t timeout_millis) {}
-
-    void setClock(uint32_t speed_Hz)
-    {
-        I2C1BRG = 157;
-    }
+    void end() { i2c->CON = 0; }
 
     void begin(int SDA_NOT_USED, int SCL_NOT_USED, uint8_t address)
     {
         _slave_address = address;
-
-        I2C1BRG = 157;
-        I2C1CON = 0x8000;
-        I2C1STAT = 0x00;
-        IFS1bits.MI2C1IF = 0;
-        IEC1bits.MI2C1IE = 0;
+        setClock(_speed);
+        i2c->CON = 0x8000;
+        i2c->STAT = 0x00;
     }
 
     void begin(void) { begin(0, 0, _slave_address); }
 
-    void end() { I2C1CON = 0; }
+    void setTimeOut(uint32_t timeout) { _timeout = timeout; }
 
-    void beginTransmission(uint8_t);
-    uint8_t endTransmission(bool stopBit);
-    uint8_t endTransmission(void);
+    void setClock(uint32_t speed_Hz)
+    {
+        if (_speed != speed_Hz)
+        {
+            _speed = speed_Hz;
+            i2c->BRG = (FCY / speed_Hz) - (FCY / 10000000U) - 1;
+        }
+    }
+
+    void beginTransmission(uint8_t address)
+    {
+        _slave_address = address;
+        tx.clear();
+        transmissionBegun = true;
+    }
+
+    uint8_t endTransmission(bool);
+    uint8_t endTransmission() { return endTransmission(true); }
 
     uint8_t requestFrom(uint8_t address, size_t size, bool stopBit);
-    uint8_t requestFrom(uint8_t address, size_t size);
+    uint8_t requestFrom(uint8_t address, size_t size) { return requestFrom(address, size, true); }
 
-    size_t write(uint8_t data);
-    size_t write(const uint8_t *data, size_t size);
+    size_t write(uint8_t ucData)
+    {
+        if (!transmissionBegun || tx.isFull())
+            return 0;
+        tx.store_char(ucData);
+        return 1;
+    }
+
+    size_t write(const uint8_t *data, size_t size)
+    {
+        for (size_t i = 0; i < size; ++i)
+        {
+            if (!write(data[i]))
+                return i;
+        }
+        return size;
+    }
 
     virtual int available(void) { return rx.available(); }
     virtual int read(void) { return rx.read_char(); }
     virtual int peek(void) { return rx.peek(); }
-    virtual void flush(void) {}
+    virtual void flush(void)
+    {
+        tx.clear();
+        rx.clear();
+    }
 
     using Print::write;
 

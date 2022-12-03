@@ -19,7 +19,7 @@
 #include <Arduino.h>
 #include "Wire.h"
 
-uint8_t TwoWire::requestFrom(uint8_t address, size_t size, bool stopBit)
+uint8_t TwoWire::requestFrom(uint8_t address, size_t size, bool stopBit) // TODO
 {
     _slave_address = address;
     if (size == 0)
@@ -34,19 +34,7 @@ uint8_t TwoWire::requestFrom(uint8_t address, size_t size, bool stopBit)
     return rx.available();
 }
 
-uint8_t TwoWire::requestFrom(uint8_t address, size_t size)
-{
-    return requestFrom(address, size, true);
-}
-
-void TwoWire::beginTransmission(uint8_t address)
-{
-    _slave_address = address;
-    tx.clear();
-    transmissionBegun = true;
-}
-
-uint8_t TwoWire::endTransmission(bool stopBit)
+uint8_t TwoWire::endTransmission(bool stopBit) // TODO
 {
     if (!stopBit)
         return 1;
@@ -56,35 +44,20 @@ uint8_t TwoWire::endTransmission(bool stopBit)
 
     // WRITE
 
-    return res == size ? 0 : 4;
-    // 0:success
-    // 1:data too long to fit in transmit buffer
-    // 2:received NACK on transmit of address
-    // 3:received NACK on transmit of data
-    // 4:other error
-}
-
-uint8_t TwoWire::endTransmission()
-{
-    return endTransmission(true);
-}
-
-size_t TwoWire::write(uint8_t ucData)
-{
-    if (!transmissionBegun || tx.isFull())
-        return 0;
-    tx.store_char(ucData);
-    return 1;
-}
-
-size_t TwoWire::write(const uint8_t *data, size_t size)
-{
-    for (size_t i = 0; i < size; ++i)
+    StartI2C();
+    if (IdleI2C() || (i2c->STAT & 1 << 15)) // ACKSTAT
+        return 4;
+    MasterWriteI2C(_slave_address | 0);
+    if (IdleI2C() || (i2c->STAT & 1 << 15)) // ACKSTAT
+        return 4;
+    while (tx.available() > 0)
     {
-        if (!write(data[i]))
-            return i;
+        MasterWriteI2C(tx.read_char());
+        if (IdleI2C() || (i2c->STAT & 1 << 15)) // ACKSTAT
+            return 4;
     }
-    return size;
+    StopI2C();
+    return IdleI2C(); // 0:success
 }
 
 TwoWire Wire(0);
