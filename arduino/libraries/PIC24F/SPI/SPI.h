@@ -22,7 +22,7 @@
 
 #include <Arduino.h>
 
-#define PRINTF Serial.printf
+//#define PRINTF Serial.printf
 
 typedef struct SPI_s
 {
@@ -53,8 +53,8 @@ public:
 
     SPISettings()
     {
-        clock = 1000000;  // Hz
-        order = MSBFIRST; // 1
+        clock = 1000000; // Hz
+        order = MSBFIRST;
         mode = SPI_MODE0;
     }
 
@@ -72,14 +72,28 @@ private:
     SPI_t *spi;
 
     uint32_t _brg_hz;
-    int _clk_polarity;
-    int _clk_format;
     int _bit_order;
-    int _data_bits;
     int _mode;
+
+    inline uint8_t reverseByte(uint8_t b)
+    {
+        b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+        b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+        b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+        return b;
+    }
+
+    void setCON(uint16_t v)
+    {
+        int stat = spi->STAT;
+        spi->STAT = 0;
+        spi->CON1 |= v;
+        spi->STAT = stat;
+    }
 
 public:
     ~SPIClass() { end(); }
+
     SPIClass(int id)
     {
         _id = id;
@@ -137,31 +151,32 @@ public:
         if (_brg_hz != Hz)
         {
             _brg_hz = Hz;
-            uint16_t timeout = (uint32_t)FCY / Hz;
+            uint16_t val, timeout = (uint32_t)FCY / Hz;
             if (timeout == 0)
             {
-                spi->CON1 |= 0b11111;
-                return;
+                val = 0b11111;
             }
-
-            uint16_t primary = 0x0003;
-            while (timeout != 0)
+            else
             {
-                if (timeout > 8)
+                uint16_t primary = 0x0003;
+                while (timeout != 0)
                 {
-                    primary--;
-                    if ((timeout % 4) != 0)
-                        timeout += 4;
-                    timeout /= 4;
+                    if (timeout > 8)
+                    {
+                        primary--;
+                        if ((timeout % 4) != 0)
+                            timeout += 4;
+                        timeout /= 4;
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
-                else
-                {
-                    break;
-                }
+                timeout--;
+                val = ((~(timeout << 2)) & 0x1C) | (primary & 3);
             }
-            timeout--;
-
-            spi->CON1 |= ((~(timeout << 2)) & 0x1C) | (primary & 3);
+            setCON(val);
         }
     }
 
@@ -170,25 +185,24 @@ public:
         if (_mode != mode)
         {
             _mode = mode;
-            // TODO
+            setCON(((mode & 1) << 8) /*CKE b8*/ | ((mode & 2) << 5) /*CKP b6*/);
         }
     }
 
-    void setBitOrder(uint8_t order)
-    {
-        if (_bit_order != order)
-        {
-            _bit_order = order;
-            // TODO
-        }
-    }
+    void setBitOrder(uint8_t order) { _bit_order = order; }
 
     uint8_t transfer(uint8_t tx)
     {
+        uint8_t rx;
+        if (_bit_order == LSBFIRST)
+            tx = reverseByte(tx);
         spi->BUFF = tx;
         while (0 == (spi->STAT & 1))
             ;
-        return spi->BUFF;
+        rx = spi->BUFF;
+        if (_bit_order == LSBFIRST)
+            rx = reverseByte(rx);
+        return rx;
     }
 
     uint16_t transfer(uint16_t data)
@@ -223,18 +237,22 @@ public:
         return count;
     }
 
+    int transfer(uint16_t *buf, size_t count)
+    {
+        for (size_t i = 0; i < count; i++)
+            transfer(*buf++);
+        return count;
+    }
+
     void write(uint8_t *buf, size_t count) { transfer(buf, count); }
 
-    void write(uint16_t *buf, size_t count) {}
+    void write(uint16_t *buf, size_t count) { transfer(buf, count); }
 
     void beginTransaction(SPISettings settings)
     {
-        int stat = spi->STAT;
-        spi->STAT = 0;
         setFrequency(settings.clock);
         setDataMode(settings.mode);
         setBitOrder(settings.order);
-        spi->STAT = stat;
     }
 
     // not used
