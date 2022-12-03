@@ -19,7 +19,7 @@
 #include <Arduino.h>
 #include "Wire.h"
 
-uint8_t TwoWire::requestFrom(uint8_t address, size_t size, bool stopBit) // TODO
+uint8_t TwoWire::requestFrom(uint8_t address, size_t size, bool stopBit)
 {
     _slave_address = address;
     if (size == 0)
@@ -28,36 +28,35 @@ uint8_t TwoWire::requestFrom(uint8_t address, size_t size, bool stopBit) // TODO
         return 0;
     rx.clear();
 
-    // READ
+    // READ TODO
 
     rx._iHead = size;
     return rx.available();
 }
 
-uint8_t TwoWire::endTransmission(bool stopBit) // TODO
+uint8_t TwoWire::endTransmission(bool stopBit)
 {
-    if (!stopBit)
-        return 1;
-    int res = 0;
-    transmissionBegun = false;
-    int size = tx.available();
-
-    // WRITE
-
-    StartI2C();
-    if (IdleI2C() || (i2c->STAT & 1 << 15)) // ACKSTAT
-        return 4;
-    MasterWriteI2C(_slave_address | 0);
-    if (IdleI2C() || (i2c->STAT & 1 << 15)) // ACKSTAT
-        return 4;
-    while (tx.available() > 0)
+    if (stopBit)
     {
-        MasterWriteI2C(tx.read_char());
-        if (IdleI2C() || (i2c->STAT & 1 << 15)) // ACKSTAT
-            return 4;
+        transmissionBegun = false;
+        int size = tx.available();
+        if (size > 0)
+        {
+            if (i2c_start())
+                return 3;
+            while (size--)
+            {
+                if (MasterWriteI2C(tx.read_char()))
+                    return 4;
+                if (IdleI2C())
+                    return 5;
+            }
+            StopI2C();
+            return IdleI2C() ? 6 : 0; // success
+        }
+        return 2;
     }
-    StopI2C();
-    return IdleI2C(); // 0:success
+    return 1;
 }
 
 TwoWire Wire(0);

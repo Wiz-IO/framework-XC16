@@ -25,7 +25,7 @@
 #include "variant.h"
 #include "RingBuffer.h"
 
-//#define WIRE_PRINT Serial.printf
+#define WIRE_PRINT Serial.printf
 
 typedef struct I2C_s
 {
@@ -34,8 +34,6 @@ typedef struct I2C_s
     uint16_t BRG;
     uint16_t CON;
     uint16_t STAT;
-    uint16_t ADD;
-    uint16_t MSK;
 } I2C_t;
 
 class TwoWire : public Stream
@@ -66,26 +64,36 @@ private:
         uint32_t T = _timeout;
         while (--T)
         {
-            /* Wait until I2C Bus is Inactive */
             if (i2c->CON & 0b11111) // SEN RSEN PEN RCEN ACKEN
+                // goto end;
                 return 0;
             if (i2c->STAT & 1 << 14) // TRSTAT
+                // goto end;
                 return 0;
         }
+        WIRE_PRINT("[I2C] Idle Timeout\n");
         return -1;
+        // end: return (i2c->STAT & 1 << 15) ? -1 : 0; // ACKSTAT
     }
 
     int MasterWriteI2C(unsigned char data)
     {
         I2C1TRN = data;
-        if (i2c->STAT & 1 << 7) /* IWCOL, If write collision occurs */
+        return (i2c->STAT & 1 << 7) ? -1 : 0; /* IWCOL, If write collision occurs */
+    }
+
+    int i2c_start()
+    {
+        StartI2C();
+        if (IdleI2C())
             return -1;
-        else
-            return 0;
+        if (MasterWriteI2C(_slave_address))
+            return -1;
+        return IdleI2C();
     }
 
 public:
-    TwoWire(int id, uint32_t speed_Hz = 100000U)
+    TwoWire(int id)
     {
         _id = id;
         switch (_id)
@@ -96,9 +104,13 @@ public:
         case 1:
             i2c = (I2C_t *)&I2C2RCV;
             break;
+        case 2:
+            i2c = (I2C_t *)&I2C3RCV;
+            break;
         }
-        _speed = speed_Hz;
+        _speed = 100000;
         _timeout = 0x8000;
+        _slave_address = 0x3C;
         transmissionBegun = false;
     }
 
@@ -106,15 +118,16 @@ public:
 
     void end() { i2c->CON = 0; }
 
-    void begin(int SDA_NOT_USED, int SCL_NOT_USED, uint8_t address)
+    void begin(uint8_t address)
     {
+        end();
         _slave_address = address;
-        setClock(_speed);
-        i2c->CON = 0x8000;
+        i2c->BRG = 158;
         i2c->STAT = 0x00;
+        i2c->CON = 0x8000;
     }
 
-    void begin(void) { begin(0, 0, _slave_address); }
+    void begin(void) { begin(_slave_address); }
 
     void setTimeOut(uint32_t timeout) { _timeout = timeout; }
 
@@ -123,7 +136,7 @@ public:
         if (_speed != speed_Hz)
         {
             _speed = speed_Hz;
-            i2c->BRG = (FCY / speed_Hz) - (FCY / 10000000U) - 1;
+            i2c->BRG = (FCY / _speed) - (FCY / 10000000U) - 1;
         }
     }
 
