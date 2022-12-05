@@ -25,71 +25,124 @@
 #include "variant.h"
 #include "RingBuffer.h"
 
-#define WIRE_PRINT Serial.printf
+#define PRINT Serial.printf
 
 typedef struct I2C_s
 {
-    uint16_t RCV;
-    uint16_t TRN;
-    uint16_t BRG;
-    uint16_t CON;
-    uint16_t STAT;
+    volatile uint16_t RCV;
+    volatile uint16_t TRN;
+    volatile uint16_t BRG;
+    volatile uint16_t CON;
+    volatile uint16_t STAT;
 } I2C_t;
 
 class TwoWire : public Stream
 {
+#define I2C_READ 1
+#define I2C_WRITE 0
 private:
     int _id;
-    I2C_t *i2c;
+    volatile I2C_t *i2c;
     uint32_t _speed, _timeout;
     bool transmissionBegun;
     uint8_t _slave_address;
     RingBuffer rx, tx;
 
-    inline void RestartI2C(void)
+    inline void _stop(void)
     {
-        i2c->CON |= 1 << 3; /*RSEN initiate restart on SDA and SCL pins */
-    }
-    inline void StopI2C(void)
-    {
-        i2c->CON |= 1 << 2; /* PEN, initiate Stop on SDA and SCL pins */
-    }
-    inline void StartI2C(void)
-    {
-        i2c->CON |= 1; /* SEN,  initiate Start on SDA and SCL pins */
+        i2c->CON |= 1 << 2; /* PEN[2] */
+        while (i2c->CON & 4)
+            ;
     }
 
-    int IdleI2C(void)
+    inline void _restart(void)
+    {
+        i2c->CON |= 1 << 1; /*RSEN[1] */
+        while (i2c->CON & 2)
+            ;
+    }
+
+    inline void _start(void)
+    {
+        i2c->CON |= 1 << 0; /* SEN[0] */
+        while (i2c->CON & 1)
+            ;
+    }
+
+    void _ack(bool ack)
+    {
+        if (ack)
+        {
+            i2c->CON |= 1 << 5; // ACKDT[5]
+        }
+        else
+        {
+            i2c->CON &= ~(1 << 5); // ACKDT[5]
+        }
+        i2c->CON |= 1 << 4;       // ACKEN[4]
+        while (i2c->CON & 1 << 4) // ACKEN[4]
+            ;
+    }
+
+    int _idle(void)
     {
         uint32_t T = _timeout;
-        while (--T)
+        while (T--)
         {
-            if (i2c->CON & 0b11111) // SEN RSEN PEN RCEN ACKEN
-                // goto end;
-                return 0;
-            if (i2c->STAT & 1 << 14) // TRSTAT
-                // goto end;
-                return 0;
+            if (!(i2c->CON & 0b11111)) // SEN[0] RSEN[1] PEN[2] RCEN[3] ACKEN[4]]
+                break;
+            if (!(i2c->STAT & 1 << 14)) // TRSTAT[14]
+                break;
         }
-        WIRE_PRINT("[I2C] Idle Timeout\n");
-        return -1;
-        // end: return (i2c->STAT & 1 << 15) ? -1 : 0; // ACKSTAT
+        if (0 == T) // Timeout
+            return -1;
+        return (i2c->STAT & 1 << 15) ? -2 : 0; // ACKSTAT[15]
     }
 
-    int MasterWriteI2C(unsigned char data)
+    int _send(unsigned char data)
     {
-        I2C1TRN = data;
-        return (i2c->STAT & 1 << 7) ? -1 : 0; /* IWCOL, If write collision occurs */
+        if (_idle())
+            return -1;
+        i2c->TRN = data;
+        if (i2c->STAT & 1 << 7) // IWCOL[7]
+        {
+            i2c->STAT &= ~(1 << 7); // IWCOL[7]
+            return -2;
+        }
+        uint32_t T = _timeout;
+        while (i2c->STAT & 1 << 0) // TBF[0]
+            if (0 == T--)
+                return -3;
+        while (i2c->STAT & 1 << 14) // TRSTAT[14] wait for the ACK
+            if (0 == T--)
+                return -4;
+        return (i2c->STAT & 1 << 15) ? -5 : 0; // ACKSTAT[15] test for ACK condition received
     }
 
-    int i2c_start()
+    int _recv()
     {
-        StartI2C();
-        if (IdleI2C())
+        if (_idle())
             return -1;
-        if (MasterWriteI2C(_slave_address))
-            return -1;
-        return IdleI2C();
+        i2c->CON |= 1 << 3;       // RCEN[3]
+        while (i2c->CON & 1 << 3) // RCEN[3]
+            ;
+        return i2c->RCV;
+    }
+
+    int i2c_start(bool operation)
+    {
+        int res = -1;
+        _start();
+        if ((res = _send(_slave_address | operation)))
+        {
+            PRINT("[I2C] Write( ADDR ) = %d 0x%X\n", res, (int)i2c->STAT);
+            return res;
+        }
+        if ((res = _idle()))
+        {
+            PRINT("[I2C] Idle( ADDR ) = %d\n", res);
+        }
+        return res;
     }
 
 public:
@@ -110,7 +163,7 @@ public:
         }
         _speed = 100000;
         _timeout = 0x8000;
-        _slave_address = 0x3C;
+        _slave_address = 0x3C << 1;
         transmissionBegun = false;
     }
 
@@ -118,13 +171,13 @@ public:
 
     void end() { i2c->CON = 0; }
 
-    void begin(uint8_t address)
+    void begin(uint8_t address_8b)
     {
-        end();
-        _slave_address = address;
-        i2c->BRG = 158;
-        i2c->STAT = 0x00;
+        _slave_address = address_8b;
+        i2c->BRG = 157;
         i2c->CON = 0x8000;
+        flush();
+        _stop(); // set bus to idle
     }
 
     void begin(void) { begin(_slave_address); }
@@ -137,12 +190,13 @@ public:
         {
             _speed = speed_Hz;
             i2c->BRG = (FCY / _speed) - (FCY / 10000000U) - 1;
+            PRINT("[I2C] BRG = %u\n", (int)i2c->BRG);
         }
     }
 
-    void beginTransmission(uint8_t address)
+    void beginTransmission(uint8_t address_8b)
     {
-        _slave_address = address;
+        _slave_address = address_8b;
         tx.clear();
         transmissionBegun = true;
     }
@@ -178,6 +232,8 @@ public:
     {
         tx.clear();
         rx.clear();
+        int r = i2c->RCV; // read to clear
+        i2c->STAT = 0x00;
     }
 
     using Print::write;
