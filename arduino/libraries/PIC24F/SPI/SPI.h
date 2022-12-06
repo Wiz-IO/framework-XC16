@@ -265,5 +265,7 @@ public:
     void detachInterrupt(){};
 };
 
+
+extern SPIClass SPI_0;
 #endif // __cplusplus
 #endif //__SPI_CLASS_H__

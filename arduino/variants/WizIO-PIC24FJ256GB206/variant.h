@@ -27,6 +27,7 @@ extern "C"
 #endif
 
 /* C ware */
+#include <xc.h>
 
 #define PIN_MAX 4
     typedef struct
@@ -37,6 +38,8 @@ extern "C"
         unsigned int mask;
     } pin_t;
     extern pin_t pins[PIN_MAX];
+
+void enableAnalogPin(int an);
 
 #define LED 3
 

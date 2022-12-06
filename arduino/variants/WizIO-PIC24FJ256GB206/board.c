@@ -18,6 +18,22 @@
 
 #include "variant.h"
 
+void enableAnalogPin(int an)
+{
+    switch (an)
+    {
+    case 9:
+        _ANSB9 = 1;
+        break;
+    case 10:
+        _ANSB10 = 1;
+        break;
+    case 11:
+        _ANSB11 = 1;
+        break;        
+    }
+}
+
 pin_t pins[PIN_MAX] = {
     {&TRISE, &LATE, &PORTE, 1 << 0},
     {&TRISE, &LATE, &PORTE, 1 << 1},
