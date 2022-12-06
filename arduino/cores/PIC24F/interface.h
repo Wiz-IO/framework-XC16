@@ -59,10 +59,29 @@ extern "C"
     extern int isinf(double);
 
     void digitalToggle(uint8_t pin);
-    uint32_t seconds(void);
+#define digitalPinToPort(p)
+#define digitalPinToBitMask(p)
+#define digitalPinToClkid(p)
+#define digitalPinSPIAvailiable(p)
+#define digitalPinToSPIDevice(p)
+#define digitalPinToSPIClockId(p)
 
 #define PPS_UNLOCK() __builtin_write_OSCCONL(OSCCON & 0xBF)
 #define PPS_LOCK() __builtin_write_OSCCONL(OSCCON | 0x40)
+
+    static inline void interrupts(void)
+    {
+        __asm__ volatile("disi #0x3FFF");
+    }
+    static inline void noInterrupts(void)
+    {
+        __asm__ volatile("disi #0x0000");
+    }
+
+    uint32_t seconds(void);
+#define clockCyclesPerMicrosecond() (F_CPU / 1000000L)                 /* ? */
+#define clockCyclesToMicroseconds(a) (((a)*1000L) / (F_CPU / 1000L))   /* ? */
+#define microsecondsToClockCycles(a) ((a)*clockCyclesPerMicrosecond()) /* ? */
 
 #ifdef __cplusplus
 }
