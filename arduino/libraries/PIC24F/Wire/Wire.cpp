@@ -19,9 +19,9 @@
 #include <Arduino.h>
 #include "Wire.h"
 
-uint8_t TwoWire::requestFrom(uint8_t address_8b, size_t size, bool stopBit)
+uint8_t TwoWire::requestFrom(uint8_t address, size_t size, bool stopBit)
 {
-    _slave_address = address_8b;
+    _slave_address = address;
     if (size == 0)
         return 0;
     if (!stopBit)
@@ -56,7 +56,7 @@ uint8_t TwoWire::endTransmission(bool stopBit)
 {
     if (stopBit)
     {
-        transmissionBegun = false;
+        _transmissionBegun = false;
         int size = tx.available();
         if (size > 0)
         {

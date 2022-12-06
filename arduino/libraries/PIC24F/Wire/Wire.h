@@ -44,8 +44,8 @@ private:
     int _id;
     volatile I2C_t *i2c;
     uint32_t _speed, _timeout;
-    bool transmissionBegun;
-    uint8_t _slave_address;
+    bool _transmissionBegun;
+    uint8_t _slave_address; // 7-bit address
     RingBuffer rx, tx;
 
     inline void _stop(void)
@@ -133,7 +133,7 @@ private:
     {
         int res = -1;
         _start();
-        if ((res = _send(_slave_address | operation)))
+        if ((res = _send((_slave_address << 1) | operation)))
         {
             return res;
         }
@@ -159,16 +159,16 @@ public:
         _speed = 100000;
         _timeout = 0x8000;
         _slave_address = 0x3C << 1;
-        transmissionBegun = false;
+        _transmissionBegun = false;
     }
 
     ~TwoWire() { end(); }
 
     void end() { i2c->CON = 0; }
 
-    void begin(uint8_t address_8b)
+    void begin(uint8_t address)
     {
-        _slave_address = address_8b;
+        _slave_address = address;
         i2c->BRG = 157;
         i2c->CON = 0x8000;
         flush();
@@ -188,11 +188,11 @@ public:
         }
     }
 
-    void beginTransmission(uint8_t address_8b)
+    void beginTransmission(uint8_t address)
     {
-        _slave_address = address_8b;
+        _slave_address = address;
         tx.clear();
-        transmissionBegun = true;
+        _transmissionBegun = true;
     }
 
     uint8_t endTransmission(bool);
@@ -203,7 +203,7 @@ public:
 
     size_t write(uint8_t ucData)
     {
-        if (!transmissionBegun || tx.isFull())
+        if (!_transmissionBegun || tx.isFull())
             return 0;
         tx.store_char(ucData);
         return 1;
