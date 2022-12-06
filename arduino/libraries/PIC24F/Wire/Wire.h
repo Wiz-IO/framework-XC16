@@ -25,7 +25,7 @@
 #include "variant.h"
 #include "RingBuffer.h"
 
-#define PRINT Serial.printf
+//#define PRINT Serial.printf
 
 typedef struct I2C_s
 {
@@ -135,14 +135,9 @@ private:
         _start();
         if ((res = _send(_slave_address | operation)))
         {
-            PRINT("[I2C] Write( ADDR ) = %d 0x%X\n", res, (int)i2c->STAT);
             return res;
         }
-        if ((res = _idle()))
-        {
-            PRINT("[I2C] Idle( ADDR ) = %d\n", res);
-        }
-        return res;
+        return _idle();
     }
 
 public:
@@ -190,7 +185,6 @@ public:
         {
             _speed = speed_Hz;
             i2c->BRG = (FCY / _speed) - (FCY / 10000000U) - 1;
-            PRINT("[I2C] BRG = %u\n", (int)i2c->BRG);
         }
     }
 
