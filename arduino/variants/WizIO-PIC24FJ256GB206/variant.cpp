@@ -34,10 +34,14 @@ void initVariant(void)
 }
 
 Uart Serial(0);
+Uart Serial1(1);
+Uart Serial2(2);
+Uart Serial3(3);
+
 extern "C" void __attribute__((interrupt, no_auto_psv)) _U1RXInterrupt(void) { Serial.IrqHandler(); }
-extern "C" void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) { Serial.IrqHandler(); } // TODO
-extern "C" void __attribute__((interrupt, no_auto_psv)) _U3RXInterrupt(void) { Serial.IrqHandler(); } // TODO
-extern "C" void __attribute__((interrupt, no_auto_psv)) _U4RXInterrupt(void) { Serial.IrqHandler(); } // TODO
+extern "C" void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) { Serial1.IrqHandler(); }
+extern "C" void __attribute__((interrupt, no_auto_psv)) _U3RXInterrupt(void) { Serial2.IrqHandler(); }
+extern "C" void __attribute__((interrupt, no_auto_psv)) _U4RXInterrupt(void) { Serial3.IrqHandler(); }
 
 uart_inst_t u_inst[UART_MAX] = {
 

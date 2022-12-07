@@ -266,6 +266,7 @@ public:
 };
 
 
-extern SPIClass SPI_0;
+extern SPIClass Spi; /* SPI phrase is used from compiler */
+
 #endif // __cplusplus
 #endif //__SPI_CLASS_H__

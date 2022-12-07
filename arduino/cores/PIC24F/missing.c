@@ -61,7 +61,7 @@ int isinf(double f) // ???
 
 __attribute__((noreturn, naked)) void __cxa_pure_virtual()
 {
-    // asm("reset");
+    //asm("reset");
     while (1)
         ;
 }

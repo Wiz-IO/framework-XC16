@@ -215,6 +215,9 @@ public:
 };
 
 extern Uart Serial;
+extern Uart Serial1;
+extern Uart Serial2;
+extern Uart Serial3;
 
 #endif
 #endif // _LUART_H_
