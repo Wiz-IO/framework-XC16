@@ -23,14 +23,17 @@ extern "C" void CLOCK_Init(void);
 
 void initVariant(void)
 {
-    CLOCK_Init();
-    TMR2_Init();
-
+    CLOCK_Init(); // FCY = 16M
+    TMR2_Init();  // F = 2M
     ANSB = 0x0000;
     ANSC = 0x0000;
     ANSD = 0x0000;
     ANSF = 0x0000;
     ANSG = 0x0000;
+#ifdef __PIC24FJ256GB210__
+    ANSA = 0x0000;
+    ANSE = 0x0000;
+#endif
 }
 
 Uart Serial(0);
@@ -44,7 +47,6 @@ extern "C" void __attribute__((interrupt, no_auto_psv)) _U3RXInterrupt(void) { S
 extern "C" void __attribute__((interrupt, no_auto_psv)) _U4RXInterrupt(void) { Serial3.IrqHandler(); }
 
 uart_inst_t u_inst[UART_MAX] = {
-
     {(uart_reg_t *)&U1MODE, _U1RXInterrupt},
     {(uart_reg_t *)&U2MODE, _U2RXInterrupt},
     {(uart_reg_t *)&U3MODE, _U3RXInterrupt},
