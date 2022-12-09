@@ -158,7 +158,7 @@ public:
         }
         _speed = 100000;
         _timeout = 0x8000;
-        _slave_address = 0x3C << 1;
+        _slave_address = 0x3C;
         _transmissionBegun = false;
     }
 
@@ -169,7 +169,7 @@ public:
     void begin(uint8_t address)
     {
         _slave_address = address;
-        i2c->BRG = 157;
+        i2c->BRG = 157; // 100k
         i2c->CON = 0x8000;
         flush();
         _stop(); // set bus to idle
