@@ -45,10 +45,3 @@ extern "C" void __attribute__((interrupt, no_auto_psv)) _U1RXInterrupt(void) { S
 extern "C" void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) { Serial1.IrqHandler(); }
 extern "C" void __attribute__((interrupt, no_auto_psv)) _U3RXInterrupt(void) { Serial2.IrqHandler(); }
 extern "C" void __attribute__((interrupt, no_auto_psv)) _U4RXInterrupt(void) { Serial3.IrqHandler(); }
-
-uart_inst_t u_inst[UART_MAX] = {
-    {(uart_reg_t *)&U1MODE, _U1RXInterrupt},
-    {(uart_reg_t *)&U2MODE, _U2RXInterrupt},
-    {(uart_reg_t *)&U3MODE, _U3RXInterrupt},
-    {(uart_reg_t *)&U4MODE, _U4RXInterrupt},
-};

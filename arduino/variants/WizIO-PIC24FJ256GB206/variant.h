@@ -48,9 +48,7 @@ void enableAnalogPin(int an);
 
 /* CPP ware */
 
-#define UART_MAX 4 
 #include <LSerial.h>
-extern Uart Serial;
 
 #endif //__cplusplus
 #endif /* __VARIANT_H__ */

@@ -20,35 +20,55 @@
 #define _LUART_H_
 #ifdef __cplusplus
 
-#include "interface.h"
-#include "HardwareSerial.h"
+#include <interface.h>
+#include <HardwareSerial.h>
 #include <RingBuffer.h>
 
-typedef struct uart_reg_s
+#define SERIAL_START_BIT_1 (0)
+#define SERIAL_START_BIT_2 (1)
+
+#define SERIAL_8_NONE (0)
+#define SERIAL_8_EVEN (2)
+#define SERIAL_8_ODD (4)
+#define SERIAL_9_NONE (6)
+
+#define SERIAL_8N1 (SERIAL_8_NONE | SERIAL_START_BIT_1)
+#define SERIAL_8N2 (SERIAL_8_NONE | SERIAL_START_BIT_2)
+
+#define SERIAL_8E1 (SERIAL_8_EVEN | SERIAL_START_BIT_1)
+#define SERIAL_8E2 (SERIAL_8_EVEN | SERIAL_START_BIT_2)
+
+#define SERIAL_8O1 (SERIAL_8_ODD | SERIAL_START_BIT_1)
+#define SERIAL_8O2 (SERIAL_8_ODD | SERIAL_START_BIT_2)
+
+#define SERIAL_9N1 (SERIAL_9_NONE | SERIAL_START_BIT_1)
+#define SERIAL_9N2 (SERIAL_9_NONE | SERIAL_START_BIT_2)
+
+typedef struct
 {
-    uint16_t MODE;
-    uint16_t STA;
-    uint16_t TX;
-    uint16_t RX;
-    uint16_t BRG;
+    volatile union
+    {
+        uint16_t MODE;
+        UxMODEBITS mode;
+    };
+    volatile union
+    {
+        uint16_t STA;
+        UxSTABITS sta;
+    };
+    volatile uint16_t TX;
+    volatile uint16_t RX;
+    volatile uint16_t BRG;
 } uart_reg_t;
-
-typedef struct uart_inst_s
-{
-    uart_reg_t *reg;
-    void (*isr)(void);
-} uart_inst_t;
-
-extern uart_inst_t u_inst[UART_MAX];
 
 class Uart : public HardwareSerial
 {
 private:
-    uart_inst_t *uart;
-
     unsigned int id;
 
-    void _pinInit()
+    uart_reg_t *uart;
+
+    void _initDefaultPins()
     {
         PPS_UNLOCK();
         switch (id)
@@ -57,18 +77,14 @@ private:
             RPINR18bits.U1RXR = 18; // RX FUNC = RPIN
             RPOR14bits.RP28R = 3;   // TX RPIN = MODE
             break;
-            // TODO OTHER
         }
         PPS_LOCK();
     }
 
-    void _setRxIF(unsigned v)
+    void _rxIF(unsigned v)
     {
         switch (id)
         {
-        case 0:
-            _U1RXIF = v;
-            return;
         case 1:
             _U2RXIF = v;
             return;
@@ -78,16 +94,15 @@ private:
         case 3:
             _U4RXIF = v;
             return;
+        default:
+            _U1RXIF = v;
         }
     }
 
-    void _setRxIE(unsigned v)
+    void _rxIE(unsigned v)
     {
         switch (id)
         {
-        case 0:
-            _U1RXIE = v;
-            return;
         case 1:
             _U2RXIE = v;
             return;
@@ -97,16 +112,15 @@ private:
         case 3:
             _U4RXIE = v;
             return;
+        default:
+            _U1RXIE = v;
         }
     }
 
-    void _setRxIP(uint8_t v)
+    void _rxIP(uint8_t v)
     {
         switch (id)
         {
-        case 0:
-            _U1RXIP = v;
-            return;
         case 1:
             _U2RXIP = v;
             return;
@@ -116,6 +130,8 @@ private:
         case 3:
             _U4RXIP = v;
             return;
+        default:
+            _U1RXIP = v;
         }
     }
 
@@ -134,11 +150,11 @@ public:
             break;
         case 1:
             RPINR19bits.U2RXR = RPIN_RX;
-            p[RPIN_TX] = 5; 
+            p[RPIN_TX] = 5;
             break;
         case 2:
             RPINR17bits.U3RXR = RPIN_RX;
-            p[RPIN_TX] = 28; 
+            p[RPIN_TX] = 28;
             break;
         case 3:
             RPINR27bits.U4RXR = RPIN_RX;
@@ -148,29 +164,54 @@ public:
         PPS_LOCK();
     }
 
-    Uart(unsigned int _id, unsigned int prio = 2)
+    Uart(unsigned int _id)
     {
         id = _id;
-        uart = &u_inst[id];
-        _setRxIP(prio);
-        _pinInit();
+        switch (id)
+        {
+        case 1:
+            uart = (uart_reg_t *)&U2MODE;
+            break;
+        case 2:
+            uart = (uart_reg_t *)&U3MODE;
+            break;
+        case 3:
+            uart = (uart_reg_t *)&U4MODE;
+            break;
+        default:
+            uart = (uart_reg_t *)&U1MODE;
+            break;
+        }
+        _rxIP(2);
+        _initDefaultPins();
     }
 
     ~Uart() { end(); }
 
-    void begin(unsigned long baudrate) // 8n1
+    void end()
     {
+        uart->MODE = 0;
+        uart->STA = 0;
+        _rxIE(0);
+        _rxIF(0);
         rxBuffer.clear();
-        uart->reg->BRG = (((FCY / baudrate) / 4) - 1);
-        uart->reg->MODE = 0xC888;
-        uart->reg->STA = 0x0510;
-        _setRxIF(0);
-        _setRxIE(1);
     }
 
-    void begin(unsigned long baudrate, unsigned long config) {} // TODO
+    void begin(unsigned long baudrate, unsigned long config)
+    {
+        end();
+        uart->BRG = (((FCY / baudrate) / 4) - 1);
+        uart->mode.BRGH = 1;
+        uart->mode.STSEL = config & 1;
+        uart->mode.PDSEL = (config >> 1) & 3;
+        uart->mode.UARTEN = 1;
+        uart->sta.UTXEN = 1;
+        _rxIE(1);
+    }
 
-    void end() { uart->reg->STA = 0; }
+    void begin(unsigned long baudrate) { begin(baudrate, SERIAL_8N1); }
+
+    void begin() { begin(115200, SERIAL_8N1); }
 
     int available() { return rxBuffer.available(); }
 
@@ -181,36 +222,33 @@ public:
 #define SPEN 0x8000u
 #define TXEN 0x0400u
 #define TRMT 0x0100u
-        if ((uart->reg->MODE & SPEN) && (uart->reg->STA & TXEN))
+        if ((uart->MODE & SPEN) && (uart->STA & TXEN))
         {
-            while ((uart->reg->STA & TRMT) == 0)
-                ;
+            while ((uart->STA & TRMT) == 0)
+                continue;
         }
         rxBuffer.clear();
     }
 
-    int read()
-    {
-        int c = rxBuffer.read_char();
-        return c;
-    }
+    int read() { return rxBuffer.read_char(); }
 
     size_t write(uint8_t c)
     {
-        while (uart->reg->STA & 1 << 9)
-            ;
-        uart->reg->TX = c;
+        while (uart->STA & 1 << 9) // UTXBF
+            continue;
+        uart->TX = c;
         return 1;
     }
 
     using Print::write;
-    operator bool() { return 1; }
+
+    operator bool() { return uart->mode.UARTEN; }
 
     void IrqHandler()
     {
-        while (uart->reg->STA & 1) // URXDA
-            rxBuffer.store_char(uart->reg->RX);
-        _setRxIF(id);
+        while (uart->STA & 1) // URXDA
+            rxBuffer.store_char(uart->RX);
+        _rxIF(0);
     }
 };
 
