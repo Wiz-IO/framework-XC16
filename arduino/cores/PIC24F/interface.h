@@ -33,10 +33,6 @@ extern "C"
 
 #include <xc.h>
 
-#define bool int
-#define true 1
-#define false 0
-
     extern int isalnum(int);
     extern int isalpha(int);
     extern int iscntrl(int);
