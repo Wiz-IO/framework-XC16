@@ -1,0 +1,28 @@
+// CONFIG3
+#pragma config WPFP = WPFP255    // Write Protection Flash Page Segment Boundary
+#pragma config SOSCSEL = EC      // Secondary Oscillator Power Mode Select
+#pragma config WUTSEL = LEG      // Voltage Regulator Wake-up Time Select
+#pragma config ALTPMP = ALPMPDIS // Alternate PMP Pin Mapping
+#pragma config WPDIS = WPDIS     // Segment Write Protection Disable
+#pragma config WPCFG = WPCFGDIS  // Write Protect Configuration Page Select
+#pragma config WPEND = WPENDMEM  // Segment Write Protection End Page Select
+
+// CONFIG2
+#pragma config POSCMOD = NONE // Primary Oscillator Select
+#pragma config IOL1WAY = OFF  // IOLOCK One-Way Set Enable
+#pragma config OSCIOFNC = ON  // OSCO Pin Configuration
+#pragma config FCKSM = CSECMD // Clock Switching and Fail-Safe Clock Monitor
+#pragma config FNOSC = FRC    // Initial Oscillator Select
+#pragma config PLL96MHZ = ON  // 96MHz PLL Startup Select
+#pragma config PLLDIV = DIV2  // 96 MHz PLL Prescaler Select
+#pragma config IESO = OFF     // Internal External Switchover
+
+// CONFIG1
+#pragma config WDTPS = PS32768 // Watchdog Timer Postscaler
+#pragma config FWPSA = PR128   // WDT Prescaler
+#pragma config WINDIS = OFF    // Windowed WDT
+#pragma config FWDTEN = OFF    // Watchdog Timer->Watchdog Timer is disabled
+#pragma config ICS = PGx2      // Emulator Pin Placement Select bits
+#pragma config GWRP = OFF      // General Segment Write Protect
+#pragma config GCP = OFF       // General Segment Code Protect
+#pragma config JTAGEN = OFF    // JTAG Port Enable
